@@ -1,3 +1,4 @@
+import json
 from flask import request, jsonify
 from http import HTTPStatus
 from sqlalchemy.orm.session import Session
@@ -29,7 +30,32 @@ def get_leads():
     return jsonify(records), HTTPStatus.OK
 
 def patch_lead():
-    return {'msg': 'lead patched'}
+
+    data = request.get_json()
+
+    session: Session = db.session
+
+    try:
+        if list(data.keys())[1]:
+            return {'error': 'extra key detected, only email is required'}, HTTPStatus.BAD_REQUEST
+    except IndexError:
+        pass
+    
+
+    try:
+        record = session.query(Leads).filter(Leads.email  == data["email"]).first()
+    except KeyError:
+        return {'error': 'email key missing or spelled wrong'}, HTTPStatus.BAD_REQUEST
+
+    try:
+        setattr(record, "visits", record.visits + 1)
+        setattr(record, "last_visit", datetime.now())
+    except AttributeError:
+        return {'error': 'email not found'}, HTTPStatus.NOT_FOUND
+
+    session.commit()
+
+    return jsonify(record)
 
 def delete_lead():
     return {'msg': 'lead deleted'}
