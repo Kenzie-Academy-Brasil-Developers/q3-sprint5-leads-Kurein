@@ -1,7 +1,7 @@
 import json
 from flask import request, jsonify
 from http import HTTPStatus
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import ProgrammingError, IntegrityError
 from sqlalchemy.orm.exc import UnmappedInstanceError
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import Query
@@ -11,16 +11,33 @@ from datetime import datetime
 
 def post_lead():
     data = request.get_json()
+    items = data.items()
+    filtered_data = dict()
 
-    data["creation_date"] = datetime.now()
-    data["last_visit"] = datetime.now()
+    fieldnames = ["email", "phone", "name"]
 
-    leads_info = Leads(**data)
+    for key, value in items:
+        if len(items) != 3:
+            return {'error': 'key(s) missing or extra key(s) detected', 'keys needed': fieldnames}, HTTPStatus.BAD_REQUEST
+        if key in fieldnames:
+            filtered_data[f'{key}'] = value
+        if key not in fieldnames:
+           return {'error': f'key {key} unauthorized', 'keys needed': fieldnames}, HTTPStatus.BAD_REQUEST 
+        if type(value) != str:
+            return {'error': f'key {key} must be a string'}, HTTPStatus.BAD_REQUEST
+
+    filtered_data["creation_date"] = datetime.now()
+    filtered_data["last_visit"] = filtered_data["creation_date"]
+
+    leads_info = Leads(**filtered_data)
 
     session: Session = db.session()
 
     session.add(leads_info)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        return {'error': 'email or phone taken'}, HTTPStatus.CONFLICT
 
     return jsonify(leads_info), HTTPStatus.CREATED
 
