@@ -4,9 +4,22 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import Query
 from app.configs.database import db
 from app.models.leads_model import Leads
+from datetime import datetime
 
 def post_lead():
-    return {'msg': 'lead created'}
+    data = request.get_json()
+
+    data["creation_date"] = datetime.now()
+    data["last_visit"] = datetime.now()
+
+    leads_info = Leads(**data)
+
+    session: Session = db.session()
+
+    session.add(leads_info)
+    session.commit()
+
+    return jsonify(leads_info), HTTPStatus.CREATED
 
 def get_leads():
     base_query: Query = db.session.query(Leads)
