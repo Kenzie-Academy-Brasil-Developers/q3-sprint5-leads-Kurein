@@ -1,6 +1,8 @@
 import json
 from flask import request, jsonify
 from http import HTTPStatus
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.orm.exc import UnmappedInstanceError
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import Query
 from app.configs.database import db
@@ -41,11 +43,12 @@ def patch_lead():
     except IndexError:
         pass
     
-
     try:
         record = session.query(Leads).filter(Leads.email  == data["email"]).first()
     except KeyError:
         return {'error': 'email key missing or spelled wrong'}, HTTPStatus.BAD_REQUEST
+    except ProgrammingError:
+        return {'error': 'email not a string'}, HTTPStatus.BAD_REQUEST
 
     try:
         setattr(record, "visits", record.visits + 1)
@@ -55,7 +58,32 @@ def patch_lead():
 
     session.commit()
 
-    return jsonify(record)
+    return jsonify(record), HTTPStatus.OK
 
 def delete_lead():
-    return {'msg': 'lead deleted'}
+
+    data = request.get_json()
+
+    session: Session = db.session
+
+    try:
+        if list(data.keys())[1]:
+            return {'error': 'extra key detected, only email is required'}, HTTPStatus.BAD_REQUEST
+    except IndexError:
+        pass
+    
+    try:
+        record = session.query(Leads).filter(Leads.email  == data["email"]).first()
+    except KeyError:
+        return {'error': 'email key missing or spelled wrong'}, HTTPStatus.BAD_REQUEST
+    except ProgrammingError:
+        return {'error': 'email not a string'}, HTTPStatus.BAD_REQUEST
+
+    try:
+        session.delete(record)
+    except UnmappedInstanceError:
+        return {'error': 'email not found'}, HTTPStatus.NOT_FOUND
+
+    session.commit()
+
+    return "", HTTPStatus.NO_CONTENT
